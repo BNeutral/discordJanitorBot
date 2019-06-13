@@ -10,7 +10,7 @@ This bot will force a one message per user limit on a channel (retroactively), a
 
 # Setup
 
-* Add the bot to your server using the link created at the discord dev page for the app, under OAuth2 submenu, by clicking the bot checkbox
+* Add the bot to your server using the link created at the discord dev page for the app, under OAuth2 submenu, by clicking the bot checkbox. Bot permissions needed are be manage messages, read messages, read message history.
 * Create a secrets.py file with the content:
 
 ```
