@@ -4,7 +4,6 @@ import discord
 from config import *
 from secrets import *
 import logging
-import asyncio
 from collections import defaultdict
 
 #bot requires manage_messages permission
@@ -19,34 +18,45 @@ class MyClient(discord.Client):
 
     def __init__(self):
         super().__init__(fetch_offline_members=True,activity=discord.Activity(name=ACTIVITY,type=discord.ActivityType.playing))
-        self.userPosts = defaultdict(list)
         self.announcementChannel = None
         self.shopChannel = None
         self.logChannel = None
-        self.fullyReady = asyncio.Event()
-        self.lock = asyncio.Lock()
+        self.userPosts = defaultdict(list)
+        self.userPostIDs = set()
 
-    #Method for logging things both to console and to a channel
+    #Method for logging things both to text log and to a channel
     async def log(self, message, deletedMessage):
         logger.info(message)
         return await self.logChannel.send(message, embed=self.makeEmbed(deletedMessage))
 
+    #Method for logging things both to console and to a text log
+    def logLocal(self, message):
+        logger.info(message)
+        print(message)
+
+    async def on_connect(self):
+        self.logLocal("Connected")
+
+    async def on_disconnect(self):
+        self.logLocal("Disconnected")
+
     #Overload. See discord.py's Client documentation
     async def on_ready(self):
-        print(MSG_FINISHED_LOADING.format(self.user))
+        self.userPosts = defaultdict(list)
+        self.userPostIDs = set()
+        self.logLocal(MSG_FINISHED_LOADING.format(self.user))
         self.announcementChannel = self.get_channel(ANNOUNCEMENT_CH_ID)
         self.shopChannel = self.get_channel(SHOP_CH_ID)
         self.logChannel = self.get_channel(LOG_CH_ID)
         await self.loadMessages()
-        self.fullyReady.set()
 
     #TODO: More async looping
     async def loadMessages(self):
-        print("Doing startup cleaning")
+        self.logLocal("Doing startup cleaning")
         #messages = await channel.history(limit=5000).flatten()
-        async for elem in self.shopChannel.history(limit=1000000):
+        async for elem in self.shopChannel.history(limit=10000):
             await self.checkMessage(elem)
-        print("Done with startup cleaning")
+        self.logLocal("Done with startup cleaning")
 
     #Checks a message against the loaded state of the bot and deletes it if it's older
     async def checkMessage(self, discordMessage):
@@ -57,21 +67,14 @@ class MyClient(discord.Client):
         except:
             pass
         authorID = discordMessage.author.id    
-        async with self.lock: #TODO: One lock per user id instead of this if performace is bad
+        if discordMessage.id not in self.userPostIDs:
             self.userPosts[authorID].append(discordMessage)
             self.userPosts[authorID].sort(key=lambda x: x.created_at,reverse=True)
-            while len(self.userPosts[authorID]) > 1:
-                #This is why the lock is needed
-                await self.deleteMessage(self.userPosts[authorID].pop())    
-        #if authorID in self.userPosts:
-        #    if self.userPosts[authorID].created_at >= discordMessage.created_at:
-        #        await self.deleteMessage(discordMessage)
-        #    else:
-        #        message = self.userPosts[authorID]
-        #        self.userPosts[authorID] = discordMessage
-        #        await self.deleteMessage(message)                
-        #else:
-        #    self.userPosts[authorID] = discordMessage
+            self.userPostIDs.add(discordMessage.id)
+        while len(self.userPosts[authorID]) > 1:
+            message = self.userPosts[authorID].pop() 
+            self.userPostIDs.remove(message.id)
+            await self.deleteMessage(message)    
 
     #Deletes a message, logs, and messages the user
     #TODO: Clump up the awaits for some better performance
@@ -89,7 +92,6 @@ class MyClient(discord.Client):
     async def on_message(self, message):
         if message.channel.id != SHOP_CH_ID:
             return
-        await self.fullyReady.wait()
         await self.checkMessage(message)
 
     #Overload. See discord.py's Client documentation
