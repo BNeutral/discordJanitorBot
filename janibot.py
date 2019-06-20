@@ -37,20 +37,17 @@ class MyClient(discord.Client):
     async def on_connect(self):
         self.logLocal("Connected")
 
-    async def on_disconnect(self):
-        self.logLocal("Disconnected")
-
     #Overload. See discord.py's Client documentation
     async def on_ready(self):
+        self.logLocal(MSG_FINISHED_LOADING.format(self.user))
         self.userPosts = defaultdict(list)
         self.userPostIDs = set()
-        self.logLocal(MSG_FINISHED_LOADING.format(self.user))
         self.announcementChannel = self.get_channel(ANNOUNCEMENT_CH_ID)
         self.shopChannel = self.get_channel(SHOP_CH_ID)
         self.logChannel = self.get_channel(LOG_CH_ID)
         await self.loadMessages()
 
-    #TODO: More async looping
+    #TODO: Clump all the awaits at the end of the loop for better performance
     async def loadMessages(self):
         self.logLocal("Doing startup cleaning")
         #messages = await channel.history(limit=5000).flatten()
@@ -108,6 +105,7 @@ class MyClient(discord.Client):
             if reaction.emoji in BANNED_REACTIONS:
                 await reaction.remove(user)
 
+    #Makes an embed out of a message and returns it
     def makeEmbed(self, message):
         author = message.author
         embed=discord.Embed(color=0xdd5f53)
