@@ -34,6 +34,7 @@ class MyClient(discord.Client):
         logger.info(message)
         print(message)
 
+    #Overload. See discord.py's Client documentation
     async def on_connect(self):
         self.logLocal("Connected")
 
@@ -48,6 +49,7 @@ class MyClient(discord.Client):
         await self.loadMessages()
 
     #TODO: Clump all the awaits at the end of the loop for better performance
+    #Goes over the channel history and deletes posts that qualify
     async def loadMessages(self):
         self.logLocal("Doing startup cleaning")
         #messages = await channel.history(limit=5000).flatten()
@@ -64,6 +66,7 @@ class MyClient(discord.Client):
         except:
             pass
         authorID = discordMessage.author.id    
+        #If I've understood python's async model correctly, no locks are needed here since context switches won't happen
         if discordMessage.id not in self.userPostIDs:
             self.userPosts[authorID].append(discordMessage)
             self.userPosts[authorID].sort(key=lambda x: x.created_at,reverse=True)
