@@ -1,6 +1,6 @@
 # Purpose
 
-This bot will force a one message per user limit on a channel (retroactively), and cleans letter reactions from one channel (not retroactively). Messages deleted from the channel will be logged to another channel and also sent to the user.
+This bot will force a one message per user limit on a channel by deleting old messages from unique users (retroactively on startup), and cleans letter reactions from messages in one channel (not retroactively). Messages deleted from the channel will be logged to another channel (for moderation purposes) and also sent to the user (in case of accidental double posting).
 
 # Requirements
 
