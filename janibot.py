@@ -5,6 +5,7 @@ from config import *
 from secrets import *
 import logging
 from collections import defaultdict
+import asyncio
 
 #bot requires manage_messages permission
 #Logger
@@ -23,6 +24,7 @@ class MyClient(discord.Client):
         self.logChannel = None
         self.userPosts = defaultdict(list)
         self.userPostIDs = set()
+        self.messagesToCleanReactionsFrom = defaultdict(int)
 
     #Method for logging things both to text log and to a channel
     async def log(self, message, deletedMessage):
@@ -77,14 +79,15 @@ class MyClient(discord.Client):
             await self.deleteMessage(message)    
 
     #Deletes a message, logs, and messages the user
-    #TODO: Clump up the awaits for some better performance
     async def deleteMessage(self, message):
         author = message.author
         content = message.content
         try :
-            await message.delete()
-            await self.log(MSG_DELETE_LOG.format(author.name+"#"+str(author.discriminator)), message)
-            await author.send(MSG_DELETED_POST.format(author.display_name,content), embed=self.makeEmbed(message))
+            coroutineList = []
+            coroutineList.append(message.delete())
+            coroutineList.append(self.log(MSG_DELETE_LOG.format(author.name+"#"+str(author.discriminator)), message))
+            coroutineList.append(author.send(MSG_DELETED_POST.format(author.display_name,content), embed=self.makeEmbed(message)))
+            await asyncio.gather(*coroutineList)
         except:
             pass
 
@@ -99,14 +102,39 @@ class MyClient(discord.Client):
     async def on_raw_reaction_add(self, payload):
         if payload.channel_id != ANNOUNCEMENT_CH_ID:
             return
-        message = await self.announcementChannel.fetch_message(payload.message_id)
-        user = message.guild.get_member(payload.user_id)
-        if message == None:
-            await self.log(MSG_FETCH_ERROR.format(payload.message_id), message)
+        messageID = payload.message_id
+        self.messagesToCleanReactionsFrom[messageID] += 1
+        if self.messagesToCleanReactionsFrom[messageID] > 1:
             return
+        await self.delete_reactions(messageID)
+
+    #Checks reactions and deletes all that are in the banned reactions list
+    async def delete_reactions(self, messageID):
+        message = await self.announcementChannel.fetch_message(messageID)
+        if message == None:
+            await self.log(MSG_FETCH_ERROR.format(messageID), message)
+            self.messagesToCleanReactionsFrom[messageID] = 0
+            return
+        coroutineList = []
         for reaction in message.reactions:
             if reaction.emoji in BANNED_REACTIONS:
-                await reaction.remove(user)
+                coroutineList.append(self.delete_reaction(reaction))
+        await asyncio.gather(*coroutineList)
+        if self.messagesToCleanReactionsFrom[messageID] > 1:
+            self.messagesToCleanReactionsFrom[messageID] = 1
+            return await self.delete_reactions(messageID)
+        else:
+            self.messagesToCleanReactionsFrom[messageID] = 0
+
+    #Given a banned reaction, fetches users and deletes all relevant instances
+    async def delete_reaction(self, reaction):
+        coroutineList = []
+        users = await reaction.users().flatten()
+        for user in users:
+            coroutine = reaction.remove(user)
+            coroutineList.append(coroutine)
+        await asyncio.gather(*coroutineList)
+
 
     #Makes an embed out of a message and returns it
     def makeEmbed(self, message):
