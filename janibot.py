@@ -84,7 +84,7 @@ class MyClient(discord.Client):
         content = message.content
         try :
             coroutineList = []
-            coroutineList.append(message.delete())
+            await message.delete()
             coroutineList.append(self.log(MSG_DELETE_LOG.format(author.name+"#"+str(author.discriminator)), message))
             coroutineList.append(author.send(MSG_DELETED_POST.format(author.display_name,content), embed=self.makeEmbed(message)))
             await asyncio.gather(*coroutineList)
